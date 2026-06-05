@@ -47,4 +47,12 @@ This log tracks experimental results, insights, failures, decisions, and open qu
 
 ---
 
+Result:
+50-60% layer reduction achieved.
+
+Observation:
+Simple queries require significantly fewer layers than complex queries.
+
+Next:
+Validate against real transformer inference.
 *Start adding entries here as experiments are conducted and insights gathered.*
