@@ -1,0 +1,4 @@
+query,type,baseline_latency_s,cnos_latency_s,latency_reduction_pct,baseline_layers,cnos_layers_executed,cnos_layers_skipped,compute_reduction_pct,ram_used_gb,page_faults,page_hits,hit_rate_pct,cache_compression_ratio,tokens_generated
+What is 2+2?,simple,65.9187,45.3387,31.2,22,10,12,54.5,0.01,10,0,0.0,4.0,16
+What is the capital of France?,simple,39.4691,16.7773,57.5,22,10,12,54.5,0.01,10,10,50.0,4.0,1
+Define gravity,simple,285.2147,13.6999,95.2,22,10,12,54.5,0.01,10,20,66.7,4.0,16

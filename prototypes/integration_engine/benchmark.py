@@ -41,6 +41,9 @@ TEST_QUERIES: List[Dict[str, str]] = [
     {"query": "Explain the theory of relativity with mathematical formulation", "type": "complex"},
 ]
 
+# Limit for real mode on CPU (very slow)
+_MAX_REAL_QUERIES = 3
+
 
 @dataclass
 class BenchmarkRow:
@@ -201,6 +204,11 @@ class Benchmark:
 
         rt = self._runtime
         rows: List[BenchmarkRow] = []
+
+        # Limit queries for real mode (CPU is very slow)
+        if rt.config.mode == "real" and len(self.queries) > _MAX_REAL_QUERIES:
+            logger.warning("Real mode: limiting to %d queries", _MAX_REAL_QUERIES)
+            self.queries = self.queries[:_MAX_REAL_QUERIES]
 
         print(f"\n  {'=' * 70}")
         print(f"  CNOS v0.7 Integration Benchmark")

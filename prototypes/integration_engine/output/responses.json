@@ -1,0 +1,38 @@
+[
+  {
+    "query": "What is 2+2?",
+    "baseline_response": "",
+    "cnos_response": "",
+    "baseline_latency_s": 21.87,
+    "cnos_latency_s": 6.89,
+    "baseline_tokens": 1,
+    "cnos_tokens": 1,
+    "baseline_layers": 22,
+    "cnos_layers_executed": 10,
+    "cnos_layers_skipped": 12
+  },
+  {
+    "query": "What is the capital of France?",
+    "baseline_response": "\n3. I.G. Farben: The manufacturer of synthetic",
+    "cnos_response": "→\r\n\r\n{%\">\r\n\r\n\t ``` ```  : ```",
+    "baseline_latency_s": 20.08,
+    "cnos_latency_s": 7.5,
+    "baseline_tokens": 16,
+    "cnos_tokens": 16,
+    "baseline_layers": 22,
+    "cnos_layers_executed": 10,
+    "cnos_layers_skipped": 12
+  },
+  {
+    "query": "Define gravity",
+    "baseline_response": "in terms of the gravitational force between two masses, including a specific example of",
+    "cnos_response": "archivietuva](#)‬ ”slanterb```bolds\r\n\r\n****](#)",
+    "baseline_latency_s": 14.97,
+    "cnos_latency_s": 6.19,
+    "baseline_tokens": 16,
+    "cnos_tokens": 16,
+    "baseline_layers": 22,
+    "cnos_layers_executed": 10,
+    "cnos_layers_skipped": 12
+  }
+]
