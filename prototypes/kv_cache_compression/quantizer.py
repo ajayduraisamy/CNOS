@@ -96,45 +96,35 @@ class FP16Quantizer(BaseQuantizer):
 
 
 class INT8Quantizer(BaseQuantizer):
-    """Per-tensor asymmetric INT8 quantisation.
+    """Symmetric INT8 quantisation.
 
-    Uses ``(x - min) / (max - min) * 255 - 128`` mapping so zero maps
-    to an integer near 0.
+    Maps ``x`` to ``round(clip(x / scale, -128, 127))`` where
+    ``scale = max(|x|) / 127``.  No zero-point needed.
     """
 
     def quantize(self, tensor: torch.Tensor) -> Tuple[torch.Tensor, QuantMetadata]:
         orig_dtype = tensor.dtype
         tensor_fp32 = tensor.float()
-        min_val = tensor_fp32.min()
-        max_val = tensor_fp32.max()
+        abs_max = tensor_fp32.abs().max()
 
-        if max_val - min_val < 1e-8:
+        if abs_max < 1e-8:
             scale = torch.tensor(1.0, device=tensor.device)
-            zero_point = torch.tensor(0, dtype=torch.int8, device=tensor.device)
             encoded = torch.zeros_like(tensor_fp32, dtype=torch.int8)
         else:
-            scale = (max_val - min_val) / 255.0
-            zero_point = (-min_val / scale).round().to(torch.int8)
-            encoded = (tensor_fp32 / scale + zero_point.float()).round().to(torch.int8)
-            encoded = encoded.clamp(-128, 127)
+            scale = abs_max / 127.0
+            encoded = (tensor_fp32 / scale).round().clamp(-128, 127).to(torch.int8)
 
         meta = QuantMetadata(
             dtype=orig_dtype,
             scale=scale,
-            zero_point=zero_point,
             scheme="int8",
             shape=tuple(tensor.shape),
         )
         return encoded, meta
 
     def dequantize(self, encoded: torch.Tensor, metadata: QuantMetadata) -> torch.Tensor:
-        scale = metadata.scale
-        zero_point = metadata.zero_point
-        if scale is None:
-            scale = torch.tensor(1.0, device=encoded.device)
-        if zero_point is None:
-            zero_point = torch.tensor(0, dtype=torch.int8, device=encoded.device)
-        restored = (encoded.float() - zero_point.float()) * scale.float()
+        scale = metadata.scale if metadata.scale is not None else torch.tensor(1.0)
+        restored = encoded.float() * scale.float()
         return restored.to(metadata.dtype)
 
     @property

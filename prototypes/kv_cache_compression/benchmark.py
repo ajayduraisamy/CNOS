@@ -4,6 +4,11 @@
 Runs synthetic token-by-token generation through the KV cache manager
 with various quantisation, pruning, and eviction configurations, then
 prints a memory / latency comparison table.
+
+Two modes:
+    - **Full** (default): Runs actual tensor operations for accurate timing.
+    - **Analytical** (``--analytical``): Computes compression ratios instantly
+      from formulas (no tensor simulation).
 """
 
 from __future__ import annotations
@@ -12,50 +17,87 @@ import argparse
 import logging
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 import torch
 
 from kv_cache import KVCacheManager
 from metrics import CompressionMetrics, CompressionRecord
-from quantizer import QuantMetadata, get_quantizer
+from quantizer import get_quantizer
 from pruner import get_pruner
 from eviction_policy import get_eviction_policy
 
 logger = logging.getLogger(__name__)
 
-
 # ---------------------------------------------------------------------------
-# Simulated token generation
+# Lazy token generator
 # ---------------------------------------------------------------------------
 
 
-def simulate_token_stream(
+def token_generator(
     num_tokens: int,
     num_layers: int = 22,
     num_heads: int = 32,
     head_dim: int = 64,
     device: Optional[torch.device] = None,
-) -> List[List[Tuple[torch.Tensor, torch.Tensor]]]:
-    """Generate synthetic key/value tensors for *num_tokens* tokens.
-
-    Returns a list of length ``num_tokens``, each entry being a list of
-    ``(key, value)`` tuples for every layer.
-    """
-    device = device or torch.device("cpu")
-    stream: List[List[Tuple[torch.Tensor, torch.Tensor]]] = []
+) -> Generator[List[Tuple[torch.Tensor, torch.Tensor]], None, None]:
+    """Yield one token step at a time: list of ``(key, value)`` per layer."""
+    dev = device or torch.device("cpu")
+    scale = 0.02
     for _ in range(num_tokens):
-        step_data: List[Tuple[torch.Tensor, torch.Tensor]] = []
+        step: List[Tuple[torch.Tensor, torch.Tensor]] = []
         for _ in range(num_layers):
-            k = torch.randn(num_heads, 1, head_dim, device=device) * 0.02
-            v = torch.randn(num_heads, 1, head_dim, device=device) * 0.02
-            step_data.append((k, v))
-        stream.append(step_data)
-    return stream
+            k = torch.randn(num_heads, 1, head_dim, device=dev) * scale
+            v = torch.randn(num_heads, 1, head_dim, device=dev) * scale
+            step.append((k, v))
+        yield step
 
 
 # ---------------------------------------------------------------------------
-# Single-config benchmark
+# Analytical computation (no tensor ops)
+# ---------------------------------------------------------------------------
+
+
+def _elems_per_token(num_layers: int, num_heads: int, head_dim: int) -> int:
+    return num_layers * num_heads * head_dim * 2  # K + V
+
+
+def run_analytical(
+    num_tokens: int,
+    num_layers: int = 22,
+    num_heads: int = 32,
+    head_dim: int = 64,
+    quantisation: str = "fp16",
+    max_cache_len: int = 4096,
+) -> CompressionRecord:
+    """Compute compression metrics analytically (instant, no tensor ops)."""
+    baseline = min(num_tokens, max_cache_len)
+    ept = _elems_per_token(num_layers, num_heads, head_dim)
+    original_mb = (baseline * ept * 4) / (1024 ** 2)
+
+    quantizer = get_quantizer(quantisation)
+    bits = quantizer.bits_per_element
+    compressed_mb = (baseline * ept * bits) / (8 * 1024 ** 2)
+    saved = original_mb - compressed_mb
+    ratio = original_mb / max(compressed_mb, 0.001)
+
+    return CompressionRecord(
+        num_tokens=num_tokens,
+        quantisation=quantisation,
+        pruner="none",
+        eviction_policy="none",
+        original_memory_mb=round(original_mb, 2),
+        compressed_memory_mb=round(compressed_mb, 2),
+        compression_ratio=round(ratio, 2),
+        memory_saved_mb=round(saved, 2),
+        quantize_time_ms=0.0,
+        dequantize_time_ms=0.0,
+        quality_score=1.0,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Full simulation benchmark (single config)
 # ---------------------------------------------------------------------------
 
 
@@ -70,74 +112,55 @@ def run_config(
     max_cache_len: int = 4096,
     device: Optional[torch.device] = None,
 ) -> CompressionRecord:
-    """Run a single benchmark configuration and return the result.
+    """Run a single simulation (generates tensors, times quantisation)."""
 
-    Simulates token-by-token generation, periodically running quantisation,
-    pruning, and eviction as the cache grows.
-    """
     device = device or torch.device("cpu")
+    baseline_tokens = min(num_tokens, max_cache_len)
+    ept = _elems_per_token(num_layers, num_heads, head_dim)
+
+    # --- Fill cache ---
     manager = KVCacheManager(
-        num_layers=num_layers,
-        num_heads=num_heads,
-        head_dim=head_dim,
-        max_cache_len=max_cache_len,
-        device=device,
-        quantisation=quantisation,
+        num_layers=num_layers, num_heads=num_heads, head_dim=head_dim,
+        max_cache_len=max_cache_len, device=device, quantisation=quantisation,
     )
-    quantizer = get_quantizer(quantisation)
-    pruner = get_pruner(pruner_name) if pruner_name != "none" else None
-    policy = get_eviction_policy(eviction_name, pruner=pruner) if eviction_name != "none" else None
-
-    token_stream = simulate_token_stream(num_tokens, num_layers, num_heads, head_dim, device)
-
-    total_quantize_s = 0.0
-    total_dequantize_s = 0.0
-    total_pruned = 0
-
-    # Track original (FP32) memory for baseline
-    fp32_bytes_per_elem = 4
-    original_elems = num_tokens * num_layers * num_heads * head_dim * 2  # K + V
-    original_memory_mb = (original_elems * fp32_bytes_per_elem) / (1024 ** 2)
-
-    for step, step_data in enumerate(token_stream):
-        # Append one token for each layer
+    for step, step_data in enumerate(token_generator(
+        baseline_tokens, num_layers, num_heads, head_dim, device,
+    )):
         for layer_idx, (k, v) in enumerate(step_data):
             manager.append(layer_idx, k, v, position=step)
 
-        # Periodically apply quantisation + pruning + eviction
-        if step > 0 and step % 256 == 0:
-            # Quantize
-            for layer_idx in range(num_layers):
-                entry = manager.entries[layer_idx]
-                if entry.seq_len > 0:
-                    t0 = time.perf_counter()
-                    q_keys, meta = quantizer.quantize(entry.keys)
-                    q_values, _ = quantizer.quantize(entry.values)
-                    t1 = time.perf_counter()
-                    total_quantize_s += (t1 - t0)
+    # --- Original memory (FP32 baseline) ---
+    original_memory_mb = (baseline_tokens * ept * 4) / (1024 ** 2)
 
-                    entry.keys = q_keys
-                    entry.values = q_values
+    # --- Quantisation timing ---
+    quantizer = get_quantizer(quantisation)
+    total_quantize_s = 0.0
+    for entry in manager.entries:
+        if entry.seq_len > 0:
+            t0 = time.perf_counter()
+            quantizer.quantize(entry.keys)
+            quantizer.quantize(entry.values)
+            total_quantize_s += time.perf_counter() - t0
 
-            # Prune + evict if over limit
-            entry = manager.entries[0]
-            if entry.seq_len > max_cache_len and policy is not None:
-                tokens_to_free = entry.seq_len - max_cache_len
-                t0 = time.perf_counter()
-                candidates = policy.select_eviction_candidates(manager, tokens_to_free)
-                t1 = time.perf_counter()
-                total_dequantize_s += (t1 - t0)
+    # --- Prune + evict if over limit ---
+    total_pruned = 0
+    total_policy_s = 0.0
+    pruner = get_pruner(pruner_name) if pruner_name != "none" else None
+    policy = get_eviction_policy(eviction_name, pruner=pruner) if eviction_name != "none" else None
 
-                for layer_idx, drop_indices in candidates.items():
-                    entry = manager.entries[layer_idx]
-                    all_indices = set(range(entry.seq_len))
-                    keep_indices = sorted(all_indices - set(drop_indices))
-                    total_pruned += len(drop_indices)
-                    entry.prune_to(keep_indices)
+    if num_tokens > max_cache_len and policy is not None:
+        tokens_to_free = baseline_tokens // 4
+        t0 = time.perf_counter()
+        candidates = policy.select_eviction_candidates(manager, tokens_to_free)
+        total_policy_s += time.perf_counter() - t0
+        for drop_indices in candidates.values():
+            total_pruned += len(drop_indices)
 
-    # Calculate final compressed memory
-    compressed_memory_mb = manager.total_memory_mb
-    compression_ratio = original_memory_mb / max(compressed_memory_mb, 0.001)
+    # --- Compressed memory (analytical) ---
+    bits = quantizer.bits_per_element
+    remaining = baseline_tokens - total_pruned
+    compressed_mb = (remaining * ept * bits) / (8 * 1024 ** 2)
+    ratio = original_memory_mb / max(compressed_mb, 0.001)
 
     return CompressionRecord(
         num_tokens=num_tokens,
@@ -145,12 +168,12 @@ def run_config(
         pruner=pruner_name,
         eviction_policy=eviction_name,
         original_memory_mb=round(original_memory_mb, 2),
-        compressed_memory_mb=round(compressed_memory_mb, 2),
-        compression_ratio=round(compression_ratio, 2),
-        memory_saved_mb=round(original_memory_mb - compressed_memory_mb, 2),
+        compressed_memory_mb=round(compressed_mb, 2),
+        compression_ratio=round(ratio, 2),
+        memory_saved_mb=round(original_memory_mb - compressed_mb, 2),
         quantize_time_ms=round(total_quantize_s * 1000, 3),
-        dequantize_time_ms=round(total_dequantize_s * 1000, 3),
-        total_cache_time_ms=round((total_quantize_s + total_dequantize_s) * 1000, 3),
+        dequantize_time_ms=round(total_policy_s * 1000, 3),
+        total_cache_time_ms=round((total_quantize_s + total_policy_s) * 1000, 3),
         quality_score=1.0,
         num_tokens_pruned=total_pruned,
     )
@@ -159,7 +182,6 @@ def run_config(
 # ---------------------------------------------------------------------------
 # Full benchmark
 # ---------------------------------------------------------------------------
-
 
 TOKEN_COUNTS = [1000, 5000, 10000, 20000]
 QUANTISATIONS = ["fp16", "int8", "int4"]
@@ -178,64 +200,45 @@ def run_benchmark(
     max_cache_len: int = 4096,
     device: Optional[torch.device] = None,
     verbose: bool = False,
+    analytical: bool = False,
 ) -> CompressionMetrics:
-    """Run the full benchmark across all configuration combinations.
-
-    Args:
-        token_counts: List of sequence lengths to test.
-        quantisations: List of quantisation schemes.
-        pruners: List of pruning strategies.
-        evictions: List of eviction policies.
-        num_layers: Number of transformer layers.
-        num_heads: Number of attention heads.
-        head_dim: Attention head dimension.
-        max_cache_len: Maximum cache length before eviction.
-        device: Torch device.
-        verbose: Print per-config results.
-
-    Returns:
-        A :class:`CompressionMetrics` with all records.
-    """
+    """Run the full benchmark.  Use ``analytical=True`` for instant results."""
     token_counts = token_counts or TOKEN_COUNTS
     quantisations = quantisations or QUANTISATIONS
     pruners = pruners or PRUNERS
     evictions = evictions or EVICTIONS
 
     metrics = CompressionMetrics()
-    total_configs = (
-        len(token_counts) * len(quantisations) * len(pruners) * len(evictions)
-    )
-    config_num = 0
+    total = len(token_counts) * len(quantisations) * len(pruners) * len(evictions)
+    done = 0
 
     for nt in token_counts:
         for q in quantisations:
             for p in pruners:
                 for e in evictions:
-                    config_num += 1
+                    done += 1
                     if verbose:
-                        print(f"\n  Config [{config_num}/{total_configs}]: "
-                              f"{nt} tokens  q={q}  pruner={p}  evict={e}")
+                        print(f"\r  [{done}/{total}]  {nt:>6} tok  "
+                              f"q={q}  p={p}  e={e}  ", end="", flush=True)
 
                     t0 = time.perf_counter()
-                    record = run_config(
-                        num_tokens=nt,
-                        num_layers=num_layers,
-                        num_heads=num_heads,
-                        head_dim=head_dim,
-                        quantisation=q,
-                        pruner_name=p,
-                        eviction_name=e,
-                        max_cache_len=max_cache_len,
-                        device=device,
-                    )
+                    if analytical:
+                        record = run_analytical(nt, num_layers, num_heads,
+                                                head_dim, q, max_cache_len)
+                    else:
+                        record = run_config(nt, num_layers, num_heads, head_dim,
+                                            q, p, e, max_cache_len, device)
                     elapsed = time.perf_counter() - t0
                     metrics.add(record)
 
                     if verbose:
                         s = record.summary()
-                        print(f"    Ratio: {s['compression_ratio']:.2f}x  "
-                              f"Memory: {s['original_mb']} → {s['compressed_mb']} MB  "
-                              f"({elapsed:.2f}s)")
+                        print(f"ratio={s['compression_ratio']:.1f}x  "
+                              f"mem={s['original_mb']:.0f}->{s['compressed_mb']:.0f}MB"
+                              f"  ({elapsed:.1f}s)", flush=True)
+
+    if verbose:
+        print()
 
     return metrics
 
@@ -249,32 +252,21 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="CNOS KV Cache Compression Benchmark",
     )
-    parser.add_argument(
-        "--tokens",
-        type=int,
-        nargs="+",
-        default=[1000, 5000, 10000, 20000],
-        help="Token counts to simulate",
-    )
-    parser.add_argument(
-        "--quantisations",
-        type=str,
-        nargs="+",
-        default=["fp16", "int8", "int4"],
-        choices=["fp16", "int8", "int4"],
-        help="Quantisation schemes to test",
-    )
-    parser.add_argument(
-        "--max-cache-len",
-        type=int,
-        default=4096,
-        help="Maximum cache length per layer",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print per-config details",
-    )
+    parser.add_argument("--tokens", type=int, nargs="+",
+                        default=[1000, 5000, 10000, 20000],
+                        help="Token counts to simulate")
+    parser.add_argument("--quantisations", type=str, nargs="+",
+                        default=["fp16", "int8", "int4"],
+                        choices=["fp16", "int8", "int4"],
+                        help="Quantisation schemes")
+    parser.add_argument("--analytical", action="store_true",
+                        help="Compute ratios from formulas (no tensor ops)")
+    parser.add_argument("--fast", action="store_true",
+                        help="Use small model config for quick test")
+    parser.add_argument("--max-cache-len", type=int, default=4096,
+                        help="Max cache length per layer")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Per-config details")
     return parser.parse_args(argv)
 
 
@@ -282,19 +274,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
 
-    print(f"\n  KV Cache Compression Benchmark")
-    print(f"  ===============================")
+    if args.fast:
+        num_layers, num_heads, head_dim = 4, 4, 16
+    else:
+        num_layers, num_heads, head_dim = 22, 32, 64
+
+    mode = "analytical" if args.analytical else "simulation"
+    print(f"\n  KV Cache Compression Benchmark [{mode}]")
     print(f"  Tokens:     {args.tokens}")
     print(f"  Quant:      {args.quantisations}")
-    print(f"  Max cache:  {args.max_cache_len} tokens")
+    print(f"  Model:      {num_layers}L {num_heads}H {head_dim}D")
     print(f"  Device:     {'cuda' if torch.cuda.is_available() else 'cpu'}")
     print()
 
     metrics = run_benchmark(
         token_counts=args.tokens,
         quantisations=args.quantisations,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        head_dim=head_dim,
         max_cache_len=args.max_cache_len,
         verbose=args.verbose,
+        analytical=args.analytical,
     )
 
     metrics.print_table("Memory Compression Comparison")

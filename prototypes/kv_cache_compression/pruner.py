@@ -103,7 +103,7 @@ class LeastUsedPruner(BasePruner):
             head_avg = attention_scores.mean(dim=0)
             if head_avg.dim() > 1:
                 head_avg = head_avg.sum(dim=0)
-            if self.accumulated_scores is None or self.accumited_scores.shape[0] != seq_len:
+            if self.accumulated_scores is None or self.accumulated_scores.shape[0] != seq_len:
                 self.accumulated_scores = head_avg
             else:
                 self.accumulated_scores = self.accumulated_scores[:seq_len] + head_avg
