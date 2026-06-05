@@ -1,0 +1,19 @@
+{
+  "model_key": "tinyllama",
+  "num_layers": 22,
+  "routing_policy": "adaptive",
+  "quantisation": "int8",
+  "num_queries": 1,
+  "avg_baseline_latency_s": 1.0,
+  "avg_cnos_latency_s": 0.8,
+  "avg_latency_reduction_pct": 20.0,
+  "avg_baseline_ram_peak_mb": 500.0,
+  "avg_cnos_ram_peak_mb": 400.0,
+  "avg_ram_reduction_pct": 20.0,
+  "avg_compute_reduction_pct": 31.8,
+  "avg_jaccard_sim": 0.85,
+  "avg_rouge_l": 0.78,
+  "avg_tokens_per_sec": 12.5,
+  "avg_cache_hit_rate_pct": 90.0,
+  "avg_compression_ratio": 2.0
+}
