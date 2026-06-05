@@ -1,0 +1,4 @@
+# CNOS Memory Profiler Dependencies
+# Python 3.11+
+
+psutil>=5.9.0
