@@ -51,7 +51,7 @@ CNOS/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/CNOS.git
+git clone https://github.com/ajayduraisamy/CNOS.git
 cd CNOS
 
 # Install the memory profiler prototype

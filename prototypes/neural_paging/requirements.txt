@@ -1,0 +1,5 @@
+# CNOS Neural Paging Engine Dependencies
+# Python 3.11+
+
+# No external runtime dependencies — uses only the standard library.
+# psutil is NOT required for this prototype.
