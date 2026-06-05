@@ -169,21 +169,35 @@ class Benchmark:
         runtime: Configured :class:`CnosRuntime` instance.
         queries: List of query dicts with ``"query"`` and ``"type"`` keys.
             Defaults to :const:`TEST_QUERIES`.
+        config: Config dict (``"mode"``, ``"model"``, etc.) used when *runtime* is None.
     """
 
     def __init__(
         self,
         runtime: Any = None,
         queries: Optional[List[Dict[str, str]]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.queries = queries or TEST_QUERIES
         self._runtime = runtime
+        self._config = config or {}
 
     def run(self) -> BenchmarkSummary:
         from runtime import CnosRuntime, RuntimeConfig
 
         if self._runtime is None:
-            self._runtime = CnosRuntime(RuntimeConfig(mode="simulate"))
+            cfg = RuntimeConfig(mode=self._config.get("mode", "simulate"))
+            if "model" in self._config:
+                cfg.model_key = self._config["model"]
+            if "max_tokens" in self._config:
+                cfg.max_tokens = self._config["max_tokens"]
+            if "ram_gb" in self._config:
+                cfg.ram_gb = self._config["ram_gb"]
+            if "routing_policy" in self._config:
+                cfg.routing_policy = self._config["routing_policy"]
+            if "quantisation" in self._config:
+                cfg.quantisation = self._config["quantisation"]
+            self._runtime = CnosRuntime(cfg)
 
         rt = self._runtime
         rows: List[BenchmarkRow] = []
@@ -309,8 +323,39 @@ class Benchmark:
         print(f"  JSON report:     {json_path}")
 
 
+def parse_args(argv: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Parse CLI arguments into a config dict."""
+    import argparse
+    p = argparse.ArgumentParser(description="CNOS Integration Benchmark")
+    p.add_argument("--mode", default="simulate", choices=["simulate", "real"],
+                   help="Execution mode (real requires model download)")
+    p.add_argument("--model", default="tinyllama",
+                   choices=["tinyllama", "qwen-1.5b", "llama-3.2-1b"],
+                   help="Model key")
+    p.add_argument("--max-tokens", type=int, default=32,
+                   help="Max tokens to generate per query")
+    p.add_argument("--ram-gb", type=float, default=4.0,
+                   help="Simulated RAM in GB")
+    p.add_argument("--routing-policy", default="adaptive",
+                   help="Layer routing policy")
+    p.add_argument("--quantisation", default="int8",
+                   help="KV cache quantisation scheme")
+    args = p.parse_args(argv)
+    return {
+        "mode": args.mode,
+        "model": args.model,
+        "max_tokens": args.max_tokens,
+        "ram_gb": args.ram_gb,
+        "routing_policy": args.routing_policy,
+        "quantisation": args.quantisation,
+    }
+
+
 def main() -> int:
-    bm = Benchmark()
+    import sys
+    config = parse_args()
+    print(f"\n  CNOS Benchmark  mode={config['mode']}  model={config['model']}")
+    bm = Benchmark(config=config)
     summary = bm.run()
     return 0 if len(summary.rows) > 0 else 1
 

@@ -1,3 +1,0 @@
-query,type,baseline_latency_s,cnos_latency_s,latency_reduction_pct,baseline_layers,cnos_layers_executed,cnos_layers_skipped,compute_reduction_pct,ram_used_gb,page_faults,page_hits,hit_rate_pct,cache_compression_ratio,tokens_generated
-test one,simple,0.4507,0.3006,33.3,22,10,12,54.5,0.01,10,0,0.0,4.0,2
-test two medium complexity,medium,0.0031,0.011,-253.3,22,10,12,54.5,0.01,10,10,50.0,4.0,2
