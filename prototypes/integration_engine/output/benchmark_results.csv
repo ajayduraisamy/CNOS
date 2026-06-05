@@ -1,0 +1,10 @@
+query,type,baseline_latency_s,cnos_latency_s,latency_reduction_pct,baseline_layers,cnos_layers_executed,cnos_layers_skipped,compute_reduction_pct,ram_used_gb,page_faults,page_hits,hit_rate_pct,cache_compression_ratio,tokens_generated
+What is 2+2?,simple,0.4869,0.3856,20.8,22,10,12,54.5,0.01,10,0,0.0,4.0,64
+What is the capital of France?,simple,0.0209,0.0041,80.3,22,10,12,54.5,0.01,10,10,50.0,4.0,64
+Define gravity,simple,0.0244,0.0079,67.5,22,10,12,54.5,0.01,10,20,66.7,4.0,64
+Explain how photosynthesis works,medium,0.0163,0.0147,9.9,22,10,12,54.5,0.01,10,30,75.0,4.0,64
+Write a Python function to sort a list,medium,0.0035,0.1861,-5257.9,22,14,8,36.4,0.02,16,38,70.4,4.0,64
+Compare mitosis and meiosis,medium,0.0152,0.0132,13.2,22,10,12,54.5,0.02,16,48,75.0,4.0,64
+Derive the quadratic formula step by step,complex,0.012,0.0062,48.6,22,10,12,54.5,0.02,16,58,78.4,4.0,64
+Write a detailed essay on the causes of World War II,complex,0.0154,0.0158,-2.8,22,10,12,54.5,0.02,16,68,81.0,4.0,64
+Explain the theory of relativity with mathematical formulation,complex,0.0173,0.0144,16.9,22,10,12,54.5,0.02,16,78,83.0,4.0,64
