@@ -1,0 +1,224 @@
+{
+  "config": {
+    "mode": "real",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "max_tokens": 16,
+    "temperature": 0.7,
+    "num_queries": 5
+  },
+  "baseline_latency_avg": 26.658042019999993,
+  "total_time_s": 253.8767869000003,
+  "timestamp": "2026-06-05T17:25:35",
+  "modes": {
+    "conservative": {
+      "avg_quality_score": 0.25473244147157187,
+      "avg_jaccard": 0.23946488294314378,
+      "avg_rouge_l": 0.26999999999999996,
+      "avg_latency_s": 8.13357509999987,
+      "avg_layers_skipped": 2.0,
+      "avg_reduction_pct": 9.090909090909092,
+      "per_query": [
+        {
+          "query": "What is 2+2?",
+          "mode": "conservative",
+          "jaccard_similarity": 1.0,
+          "rouge_l_f1": 1.0,
+          "quality_score": 1.0,
+          "similarity_score": 1.0,
+          "quality_loss": 0.0,
+          "latency_s": 2.5905,
+          "num_layers_skipped": 2,
+          "compute_reduction_pct": 9.09
+        },
+        {
+          "query": "What is the capital of France?",
+          "mode": "conservative",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 15.2238,
+          "num_layers_skipped": 2,
+          "compute_reduction_pct": 9.09
+        },
+        {
+          "query": "Explain REST API",
+          "mode": "conservative",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 7.2459,
+          "num_layers_skipped": 2,
+          "compute_reduction_pct": 9.09
+        },
+        {
+          "query": "Write Python binary search",
+          "mode": "conservative",
+          "jaccard_similarity": 0.1538,
+          "rouge_l_f1": 0.2667,
+          "quality_score": 0.2103,
+          "similarity_score": 0.1538,
+          "quality_loss": 0.7897,
+          "latency_s": 6.6103,
+          "num_layers_skipped": 2,
+          "compute_reduction_pct": 9.09
+        },
+        {
+          "query": "Explain transformer attention",
+          "mode": "conservative",
+          "jaccard_similarity": 0.0435,
+          "rouge_l_f1": 0.0833,
+          "quality_score": 0.0634,
+          "similarity_score": 0.0435,
+          "quality_loss": 0.9366,
+          "latency_s": 8.9973,
+          "num_layers_skipped": 2,
+          "compute_reduction_pct": 9.09
+        }
+      ]
+    },
+    "balanced": {
+      "avg_quality_score": 0.06812240086381963,
+      "avg_jaccard": 0.04796774545058298,
+      "avg_rouge_l": 0.08827705627705629,
+      "avg_latency_s": 8.87116773999951,
+      "avg_layers_skipped": 3.0,
+      "avg_reduction_pct": 13.636363636363635,
+      "per_query": [
+        {
+          "query": "What is 2+2?",
+          "mode": "balanced",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 8.0238,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "What is the capital of France?",
+          "mode": "balanced",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 10.0572,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "Explain REST API",
+          "mode": "balanced",
+          "jaccard_similarity": 0.0476,
+          "rouge_l_f1": 0.0909,
+          "quality_score": 0.0693,
+          "similarity_score": 0.0476,
+          "quality_loss": 0.9307,
+          "latency_s": 9.5362,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "Write Python binary search",
+          "mode": "balanced",
+          "jaccard_similarity": 0.087,
+          "rouge_l_f1": 0.16,
+          "quality_score": 0.1235,
+          "similarity_score": 0.087,
+          "quality_loss": 0.8765,
+          "latency_s": 9.0531,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "Explain transformer attention",
+          "mode": "balanced",
+          "jaccard_similarity": 0.1053,
+          "rouge_l_f1": 0.1905,
+          "quality_score": 0.1479,
+          "similarity_score": 0.1053,
+          "quality_loss": 0.8521,
+          "latency_s": 7.6855,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        }
+      ]
+    },
+    "aggressive": {
+      "avg_quality_score": 0.03792424242424243,
+      "avg_jaccard": 0.026515151515151512,
+      "avg_rouge_l": 0.04933333333333334,
+      "avg_latency_s": 7.083910800000012,
+      "avg_layers_skipped": 3.0,
+      "avg_reduction_pct": 13.636363636363635,
+      "per_query": [
+        {
+          "query": "What is 2+2?",
+          "mode": "aggressive",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 7.7708,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "What is the capital of France?",
+          "mode": "aggressive",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 6.6879,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "Explain REST API",
+          "mode": "aggressive",
+          "jaccard_similarity": 0.0909,
+          "rouge_l_f1": 0.1667,
+          "quality_score": 0.1288,
+          "similarity_score": 0.0909,
+          "quality_loss": 0.8712,
+          "latency_s": 7.6088,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "Write Python binary search",
+          "mode": "aggressive",
+          "jaccard_similarity": 0.0417,
+          "rouge_l_f1": 0.08,
+          "quality_score": 0.0608,
+          "similarity_score": 0.0417,
+          "quality_loss": 0.9392,
+          "latency_s": 6.66,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        },
+        {
+          "query": "Explain transformer attention",
+          "mode": "aggressive",
+          "jaccard_similarity": 0.0,
+          "rouge_l_f1": 0.0,
+          "quality_score": 0.0,
+          "similarity_score": 0.0,
+          "quality_loss": 1.0,
+          "latency_s": 6.6921,
+          "num_layers_skipped": 3,
+          "compute_reduction_pct": 13.64
+        }
+      ]
+    }
+  }
+}
